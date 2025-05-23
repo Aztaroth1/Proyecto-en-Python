@@ -28,7 +28,7 @@ TF-IDF es una técnica ampliamente utilizada en el procesamiento de lenguaje nat
 
 3. **Ejecuta la aplicación:**
    ```bash
-   python main.py
+   python navegador.py
    ```
 
 ## Dependencias
