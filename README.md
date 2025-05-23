@@ -37,6 +37,10 @@ Puedes instalar las dependencias con:
 ```bash
 pip install -r requirements.txt
 ```
+Descargar datos necesarios
+```bash
+python setup.py
+```
 
 ## Uso
 
