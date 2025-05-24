@@ -101,56 +101,91 @@ def launch_gui(docs_data):
             result_text.insert(tk.END, "Por favor, ingrese un término de búsqueda.")
             result_text.config(state='disabled')
             return
-            
+
         results = search(query, docs_data)
         result_text.config(state='normal')
         result_text.delete(1.0, tk.END)
-        
+
         if not results:
             result_text.insert(tk.END, "No se encontraron resultados.")
         else:
-            for doc, score in results[:10]:  # top 10
-                result_text.insert(tk.END, f"{doc} - Score: {score:.4f}\n\n")
+            for idx, (doc, score) in enumerate(results[:10], start=1):
+                result_text.insert(tk.END, f"{idx}. {doc}\n")
+                result_text.insert(tk.END, f"    Relevancia: {score:.4f}\n\n")
         result_text.config(state='disabled')
 
     root = tk.Tk()
-    root.title("MiniSearch")
+    root.title("LOOKFOUND - Dark Mode")
+    root.configure(bg="#121212")
 
     # Tamaño ventana y centrado
-    window_width = 700
-    window_height = 500
+    window_width = 800
+    window_height = 600
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     x = int((screen_width / 2) - (window_width / 2))
     y = int((screen_height / 2) - (window_height / 2))
     root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-    root.configure(bg="white")
 
-    # Fuente para logo
-    logo_font = tkfont.Font(family="Arial", size=36, weight="bold")
-    
-    # Contenedor principal
-    frame = tk.Frame(root, bg="white")
-    frame.pack(expand=True)
+    base_font = tkfont.Font(family="Segoe UI", size=12)
 
-    # Logo
-    logo = tk.Label(frame, text="MiniSearch", font=logo_font, fg="#4285F4", bg="white")
-    logo.pack(pady=20)
+    # Top bar estilo navegador oscuro
+    top_frame = tk.Frame(root, bg="#1F1F1F", height=80)
+    top_frame.pack(fill=tk.X, side=tk.TOP)
 
-    # Barra de búsqueda
-    entry = ttk.Entry(frame, width=60, font=("Arial", 14))
-    entry.pack(ipady=6, padx=10)
+    logo = tk.Label(top_frame, text="LOOKFOUND", font=("Segoe UI", 26, "bold"), fg="#FFFFFF", bg="#1F1F1F")
+    logo.pack(side=tk.LEFT, padx=20, pady=20)
 
-    # Botón de búsqueda
-    search_button = ttk.Button(frame, text="Buscar", command=on_search)
-    search_button.pack(pady=10)
+    search_frame = tk.Frame(top_frame, bg="#1F1F1F")
+    search_frame.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=10)
 
-    # Área de resultados
-    result_text = tk.Text(root, height=15, width=80, font=("Arial", 12), bg="#f9f9f9", wrap=tk.WORD)
-    result_text.pack(pady=10)
+    # Estilo redondeado con bordes y colores oscuros
+    style = ttk.Style()
+    style.theme_use("clam")
+    style.configure("DarkEntry.TEntry",
+                    padding=6,
+                    foreground="#FFFFFF",
+                    fieldbackground="#2B2B2B",
+                    bordercolor="#3E3E3E",
+                    relief="flat",
+                    font=("Segoe UI", 14))
+    style.map("DarkEntry.TEntry",
+              fieldbackground=[("active", "#2B2B2B")],
+              foreground=[("active", "#FFFFFF")])
+
+    entry = ttk.Entry(search_frame, width=60, style="DarkEntry.TEntry")
+    entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=(0, 10))
+
+    # Botón estilo moderno
+    style.configure("Dark.TButton",
+                    background="#4285F4",
+                    foreground="#FFFFFF",
+                    font=("Segoe UI", 12),
+                    padding=6)
+    style.map("Dark.TButton",
+              background=[("active", "#3367D6")],
+              foreground=[("active", "#FFFFFF")])
+
+    search_button = ttk.Button(search_frame, text="Buscar", style="Dark.TButton", command=on_search)
+    search_button.pack(side=tk.LEFT)
+
+    # Área de resultados con fondo oscuro y texto claro
+    result_frame = tk.Frame(root, bg="#121212")
+    result_frame.pack(fill=tk.BOTH, expand=True)
+
+    result_text = tk.Text(result_frame,
+                          font=base_font,
+                          bg="#1E1E1E",
+                          fg="#FFFFFF",
+                          wrap=tk.WORD,
+                          relief=tk.FLAT,
+                          borderwidth=10,
+                          insertbackground="white")
+    result_text.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
     result_text.config(state='disabled')
 
     root.mainloop()
+
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+La programación orientada a objetos organiza el software en clases y objetos, facilitando la reutilización del código. hola
