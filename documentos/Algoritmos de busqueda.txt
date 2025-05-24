@@ -1,0 +1,1 @@
+Los algoritmos de búsqueda son fundamentales en bases de datos y motores de búsqueda para localizar información de forma rápida. hola
