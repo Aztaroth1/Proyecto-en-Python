@@ -7,21 +7,19 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import font as tkfont
 from unidecode import unidecode
+import subprocess
+import sys
 
 stop_words = set(stopwords.words("spanish"))
 
 def preprocess(text):
-    # Normalizar el texto: convertir a minúsculas y quitar tildes
     text = unidecode(text.lower())
-    # Encontrar palabras y normalizar
     tokens = re.findall(r'\b\w+\b', text)
-    # Filtrar stop words
     return [t for t in tokens if t not in stop_words]
 
 def read_document(file_path):
     try:
         with open(file_path, encoding='utf-8') as f:
-            # Guardamos el texto original y su versión normalizada
             text = f.read()
             return os.path.basename(file_path), text
     except Exception as e:
@@ -34,39 +32,25 @@ def process_document(doc_tuple):
     return doc_name, tokens
 
 def search(query, docs_data):
-    # Normalizamos la consulta de la misma manera que los documentos
     query_tokens = preprocess(query)
     scores = defaultdict(float)
     doc_count = len(docs_data)
 
-    
-    # Usar map para calcular document frequency para las palabras de búsqueda
     def count_query_tokens(doc_tuple):
         doc_name, tokens = doc_tuple
         return {token: 1 for token in query_tokens if token in tokens}
-    
-    # Usar reduce para combinar los conteos de documentos
+
     def combine_counts(count1, count2):
         return {k: count1.get(k, 0) + count2.get(k, 0) for k in set(count1) | set(count2)}
-    
-    # Calcular document frequency usando map y reduce
+
     doc_freqs = reduce(combine_counts, 
                       map(count_query_tokens, docs_data), 
                       defaultdict(int))
-    
-    print(f"Document frequencies para términos de búsqueda: {dict(doc_freqs)}")
-    
-    # Calcular TF-IDF para cada palabra de búsqueda
+
     for token in query_tokens:
         if token in doc_freqs:
-            # Calcular IDF para esta palabra de búsqueda
-            print(doc_freqs[token])
-            print(doc_count)
-            idf = math.log(doc_count / 1+ doc_freqs[token])
-            print(f"Token '{token}' - IDF: {idf:.4f}")
+            idf = math.log(doc_count / (1 + doc_freqs[token]))
 
-            
-            # Usar map para calcular TF-IDF para cada documento
             def calculate_tfidf(doc_tuple):
                 doc_name, tokens = doc_tuple
                 if token in tokens:
@@ -76,49 +60,66 @@ def search(query, docs_data):
                     tf_idf = tf * idf
                     return doc_name, tf_idf
                 return doc_name, 0
-            
-            # Aplicar map y actualizar scores
+
             doc_scores = map(calculate_tfidf, docs_data)
             for doc_name, score in doc_scores:
                 if score > 0:
                     scores[doc_name] += score
-                    print(f"Documento: {doc_name}")
-                    print(f"  TF-IDF: {score:.4f}")
-        else:
-            print(f"Token '{token}' no encontrado en ningún documento")
-    
-    # Debug: mostrar scores finales
-    print(f"Scores finales: {dict(scores)}")
-    
+
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+def open_document(doc_name):
+    full_path = os.path.abspath(os.path.join("documentos", doc_name))
+    try:
+        if sys.platform == "win32":
+            os.startfile(full_path)
+        elif sys.platform == "darwin":
+            subprocess.call(("open", full_path))
+        else:
+            subprocess.call(("xdg-open", full_path))
+    except Exception as e:
+        print(f"No se pudo abrir el documento {doc_name}: {str(e)}")
 
 def launch_gui(docs_data):
     def on_search():
         query = entry.get()
+        for widget in result_frame.winfo_children():
+            widget.destroy()
+
         if not query.strip():
-            result_text.config(state='normal')
-            result_text.delete(1.0, tk.END)
-            result_text.insert(tk.END, "Por favor, ingrese un término de búsqueda.")
-            result_text.config(state='disabled')
+            label = tk.Label(result_frame, text="Por favor, ingrese un término de búsqueda.", fg="white", bg="#121212", font=base_font)
+            label.pack(anchor='w', padx=20, pady=10)
             return
 
         results = search(query, docs_data)
-        result_text.config(state='normal')
-        result_text.delete(1.0, tk.END)
 
         if not results:
-            result_text.insert(tk.END, "No se encontraron resultados.")
+            label = tk.Label(result_frame, text="No se encontraron resultados.", fg="white", bg="#121212", font=base_font)
+            label.pack(anchor='w', padx=20, pady=10)
         else:
             for idx, (doc, score) in enumerate(results[:10], start=1):
-                result_text.insert(tk.END, f"{idx}. {doc}\n")
-                result_text.insert(tk.END, f"    Relevancia: {score:.4f}\n\n")
-        result_text.config(state='disabled')
+                container = tk.Frame(result_frame, bg="#121212")
+                container.pack(fill=tk.X, padx=20, pady=5)
+
+                left_part = tk.Frame(container, bg="#121212")
+                left_part.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+                right_part = tk.Frame(container, bg="#121212")
+                right_part.pack(side=tk.RIGHT)
+
+                label_doc = tk.Label(left_part, text=f"{idx}. {doc}", fg="white", bg="#121212", font=(base_font, 12, 'bold'))
+                label_doc.pack(anchor='w')
+
+                label_score = tk.Label(left_part, text=f"    Relevancia: {score:.4f}", fg="white", bg="#121212", font=base_font)
+                label_score.pack(anchor='w')
+
+                open_button = ttk.Button(right_part, text="Abrir", command=lambda d=doc: open_document(d), style="Dark.TButton")
+                open_button.pack(anchor='e')
 
     root = tk.Tk()
     root.title("LOOKFOUND - Dark Mode")
     root.configure(bg="#121212")
 
-    # Tamaño ventana y centrado
     window_width = 800
     window_height = 600
     screen_width = root.winfo_screenwidth()
@@ -129,7 +130,6 @@ def launch_gui(docs_data):
 
     base_font = tkfont.Font(family="Segoe UI", size=12)
 
-    # Top bar estilo navegador oscuro
     top_frame = tk.Frame(root, bg="#1F1F1F", height=80)
     top_frame.pack(fill=tk.X, side=tk.TOP)
 
@@ -139,7 +139,6 @@ def launch_gui(docs_data):
     search_frame = tk.Frame(top_frame, bg="#1F1F1F")
     search_frame.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=10)
 
-    # Estilo redondeado con bordes y colores oscuros
     style = ttk.Style()
     style.theme_use("clam")
     style.configure("DarkEntry.TEntry",
@@ -156,7 +155,6 @@ def launch_gui(docs_data):
     entry = ttk.Entry(search_frame, width=60, style="DarkEntry.TEntry")
     entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4, padx=(0, 10))
 
-    # Botón estilo moderno
     style.configure("Dark.TButton",
                     background="#4285F4",
                     foreground="#FFFFFF",
@@ -169,48 +167,26 @@ def launch_gui(docs_data):
     search_button = ttk.Button(search_frame, text="Buscar", style="Dark.TButton", command=on_search)
     search_button.pack(side=tk.LEFT)
 
-    # Área de resultados con fondo oscuro y texto claro
     result_frame = tk.Frame(root, bg="#121212")
     result_frame.pack(fill=tk.BOTH, expand=True)
 
-    result_text = tk.Text(result_frame,
-                          font=base_font,
-                          bg="#1E1E1E",
-                          fg="#FFFFFF",
-                          wrap=tk.WORD,
-                          relief=tk.FLAT,
-                          borderwidth=10,
-                          insertbackground="white")
-    result_text.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
-    result_text.config(state='disabled')
-
     root.mainloop()
 
-
-
 if __name__ == "__main__":
-    # Directorio donde están los documentos
     docs_directory = "documentos"
-    
-    # Crear el directorio si no existe
+
     if not os.path.exists(docs_directory):
         os.makedirs(docs_directory)
         print(f"Se ha creado el directorio '{docs_directory}'. Por favor, coloca tus archivos .txt en esta carpeta.")
         exit()
-    
-    # Obtener todos los archivos .txt del directorio
+
     txt_files = glob.glob(os.path.join(docs_directory, "*.txt"))
     print(f"Archivos encontrados: {txt_files}")
-    
+
     if not txt_files:
         print(f"No se encontraron archivos .txt en el directorio '{docs_directory}'.")
         print("Por favor, coloca algunos archivos .txt en esta carpeta y vuelve a ejecutar el programa.")
         exit()
-    
-    # Usar map para leer y procesar los documentos
-    docs_data = list(map(process_document, 
-                        map(read_document, txt_files)))
-    print(docs_data)
-    # Iniciar la interfaz gráfica
-    launch_gui(docs_data)
 
+    docs_data = list(map(process_document, map(read_document, txt_files)))
+    launch_gui(docs_data)
