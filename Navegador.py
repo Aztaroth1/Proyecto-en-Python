@@ -9,6 +9,7 @@ from tkinter import font as tkfont
 from unidecode import unidecode
 import subprocess
 import sys
+from database import DatabaseConnection
 
 stop_words = set(stopwords.words("spanish"))
 
@@ -31,7 +32,7 @@ def process_document(doc_tuple):
     tokens = preprocess(text)
     return doc_name, tokens
 
-def search(query, docs_data):
+def search(query, docs_data, db=None):
     query_tokens = preprocess(query)
     scores = defaultdict(float)
     doc_count = len(docs_data)
@@ -66,7 +67,25 @@ def search(query, docs_data):
                 if score > 0:
                     scores[doc_name] += score
 
-    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    results = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # Guardar en base de datos si está disponible
+    if db:
+        try:
+            db.save_search_history(query, len(results))
+            
+            # Obtener documentos de la base de datos para mapear nombres a IDs
+            db_docs = db.get_documents()
+            doc_name_to_id = {doc['name']: doc['id'] for doc in db_docs}
+            
+            # Guardar scores de documentos
+            for doc_name, score in results:
+                if doc_name in doc_name_to_id:
+                    db.save_document_scores(doc_name_to_id[doc_name], query, score)
+        except Exception as e:
+            print(f"Error guardando en base de datos: {e}")
+    
+    return results
 
 def open_document(doc_name):
     full_path = os.path.abspath(os.path.join("documentos", doc_name))
@@ -81,6 +100,19 @@ def open_document(doc_name):
         print(f"No se pudo abrir el documento {doc_name}: {str(e)}")
 
 def launch_gui(docs_data):
+    # Inicializar conexión a base de datos
+    db = None
+    try:
+        db = DatabaseConnection()
+        if db.connect():
+            print("Conexión a base de datos establecida")
+        else:
+            print("No se pudo conectar a la base de datos, funcionando sin persistencia")
+            db = None
+    except Exception as e:
+        print(f"Error conectando a base de datos: {e}")
+        db = None
+
     def on_search():
         query = entry.get()
         for widget in result_frame.winfo_children():
@@ -91,7 +123,7 @@ def launch_gui(docs_data):
             label.pack(anchor='w', padx=20, pady=10)
             return
 
-        results = search(query, docs_data)
+        results = search(query, docs_data, db)
 
         if not results:
             label = tk.Label(result_frame, text="No se encontraron resultados.", fg="white", bg="#121212", font=base_font)
@@ -170,6 +202,12 @@ def launch_gui(docs_data):
     result_frame = tk.Frame(root, bg="#121212")
     result_frame.pack(fill=tk.BOTH, expand=True)
 
+    def on_closing():
+        if db:
+            db.disconnect()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
 
 if __name__ == "__main__":
